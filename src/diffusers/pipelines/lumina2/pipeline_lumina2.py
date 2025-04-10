@@ -17,7 +17,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
-from transformers import AutoModel, AutoTokenizer
+from transformers import Gemma2PreTrainedModel, GemmaTokenizer, GemmaTokenizerFast
 
 from ...image_processor import VaeImageProcessor
 from ...loaders import Lumina2LoraLoaderMixin
@@ -25,6 +25,7 @@ from ...models import AutoencoderKL
 from ...models.transformers.transformer_lumina2 import Lumina2Transformer2DModel
 from ...schedulers import FlowMatchEulerDiscreteScheduler
 from ...utils import (
+    deprecate,
     is_torch_xla_available,
     logging,
     replace_example_docstring,
@@ -47,9 +48,9 @@ EXAMPLE_DOC_STRING = """
     Examples:
         ```py
         >>> import torch
-        >>> from diffusers import Lumina2Text2ImgPipeline
+        >>> from diffusers import Lumina2Pipeline
 
-        >>> pipe = Lumina2Text2ImgPipeline.from_pretrained("Alpha-VLLM/Lumina-Image-2.0", torch_dtype=torch.bfloat16)
+        >>> pipe = Lumina2Pipeline.from_pretrained("Alpha-VLLM/Lumina-Image-2.0", torch_dtype=torch.bfloat16)
         >>> # Enable memory optimizations.
         >>> pipe.enable_model_cpu_offload()
 
@@ -133,7 +134,7 @@ def retrieve_timesteps(
     return timesteps, num_inference_steps
 
 
-class Lumina2Text2ImgPipeline(DiffusionPipeline, Lumina2LoraLoaderMixin):
+class Lumina2Pipeline(DiffusionPipeline, Lumina2LoraLoaderMixin):
     r"""
     Pipeline for text-to-image generation using Lumina-T2I.
 
@@ -143,13 +144,10 @@ class Lumina2Text2ImgPipeline(DiffusionPipeline, Lumina2LoraLoaderMixin):
     Args:
         vae ([`AutoencoderKL`]):
             Variational Auto-Encoder (VAE) Model to encode and decode images to and from latent representations.
-        text_encoder ([`AutoModel`]):
-            Frozen text-encoder. Lumina-T2I uses
-            [T5](https://huggingface.co/docs/transformers/model_doc/t5#transformers.AutoModel), specifically the
-            [t5-v1_1-xxl](https://huggingface.co/Alpha-VLLM/tree/main/t5-v1_1-xxl) variant.
-        tokenizer (`AutoModel`):
-            Tokenizer of class
-            [AutoModel](https://huggingface.co/docs/transformers/model_doc/t5#transformers.AutoModel).
+        text_encoder ([`Gemma2PreTrainedModel`]):
+            Frozen Gemma2 text-encoder.
+        tokenizer (`GemmaTokenizer` or `GemmaTokenizerFast`):
+            Gemma tokenizer.
         transformer ([`Transformer2DModel`]):
             A text conditioned `Transformer2DModel` to denoise the encoded image latents.
         scheduler ([`SchedulerMixin`]):
@@ -165,8 +163,8 @@ class Lumina2Text2ImgPipeline(DiffusionPipeline, Lumina2LoraLoaderMixin):
         transformer: Lumina2Transformer2DModel,
         scheduler: FlowMatchEulerDiscreteScheduler,
         vae: AutoencoderKL,
-        text_encoder: AutoModel,
-        tokenizer: AutoTokenizer,
+        text_encoder: Gemma2PreTrainedModel,
+        tokenizer: Union[GemmaTokenizer, GemmaTokenizerFast],
     ):
         super().__init__()
 
@@ -770,3 +768,23 @@ class Lumina2Text2ImgPipeline(DiffusionPipeline, Lumina2LoraLoaderMixin):
             return (image,)
 
         return ImagePipelineOutput(images=image)
+
+
+class Lumina2Text2ImgPipeline(Lumina2Pipeline):
+    def __init__(
+        self,
+        transformer: Lumina2Transformer2DModel,
+        scheduler: FlowMatchEulerDiscreteScheduler,
+        vae: AutoencoderKL,
+        text_encoder: Gemma2PreTrainedModel,
+        tokenizer: Union[GemmaTokenizer, GemmaTokenizerFast],
+    ):
+        deprecation_message = "`Lumina2Text2ImgPipeline` has been renamed to `Lumina2Pipeline` and will be removed in a future version. Please use `Lumina2Pipeline` instead."
+        deprecate("diffusers.pipelines.lumina2.pipeline_lumina2.Lumina2Text2ImgPipeline", "0.34", deprecation_message)
+        super().__init__(
+            transformer=transformer,
+            scheduler=scheduler,
+            vae=vae,
+            text_encoder=text_encoder,
+            tokenizer=tokenizer,
+        )

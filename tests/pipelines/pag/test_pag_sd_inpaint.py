@@ -30,10 +30,11 @@ from diffusers import (
     UNet2DConditionModel,
 )
 from diffusers.utils.testing_utils import (
+    backend_empty_cache,
     enable_full_determinism,
     floats_tensor,
     load_image,
-    require_torch_gpu,
+    require_torch_accelerator,
     slow,
     torch_device,
 )
@@ -251,7 +252,7 @@ class StableDiffusionPAGInpaintPipelineFastTests(
 
 
 @slow
-@require_torch_gpu
+@require_torch_accelerator
 class StableDiffusionPAGPipelineIntegrationTests(unittest.TestCase):
     pipeline_class = StableDiffusionPAGInpaintPipeline
     repo_id = "runwayml/stable-diffusion-v1-5"
@@ -259,12 +260,12 @@ class StableDiffusionPAGPipelineIntegrationTests(unittest.TestCase):
     def setUp(self):
         super().setUp()
         gc.collect()
-        torch.cuda.empty_cache()
+        backend_empty_cache(torch_device)
 
     def tearDown(self):
         super().tearDown()
         gc.collect()
-        torch.cuda.empty_cache()
+        backend_empty_cache(torch_device)
 
     def get_inputs(self, device, generator_device="cpu", seed=0, guidance_scale=7.0):
         img_url = "https://raw.githubusercontent.com/CompVis/latent-diffusion/main/data/inpainting_examples/overture-creations-5sI6fQgYIuo.png"
@@ -289,7 +290,7 @@ class StableDiffusionPAGPipelineIntegrationTests(unittest.TestCase):
 
     def test_pag_cfg(self):
         pipeline = AutoPipelineForInpainting.from_pretrained(self.repo_id, enable_pag=True, torch_dtype=torch.float16)
-        pipeline.enable_model_cpu_offload()
+        pipeline.enable_model_cpu_offload(device=torch_device)
         pipeline.set_progress_bar_config(disable=None)
 
         inputs = self.get_inputs(torch_device)
@@ -301,13 +302,13 @@ class StableDiffusionPAGPipelineIntegrationTests(unittest.TestCase):
         expected_slice = np.array(
             [0.38793945, 0.4111328, 0.47924805, 0.39208984, 0.4165039, 0.41674805, 0.37060547, 0.36791992, 0.40625]
         )
-        assert (
-            np.abs(image_slice.flatten() - expected_slice).max() < 1e-3
-        ), f"output is different from expected, {image_slice.flatten()}"
+        assert np.abs(image_slice.flatten() - expected_slice).max() < 1e-3, (
+            f"output is different from expected, {image_slice.flatten()}"
+        )
 
     def test_pag_uncond(self):
         pipeline = AutoPipelineForInpainting.from_pretrained(self.repo_id, enable_pag=True, torch_dtype=torch.float16)
-        pipeline.enable_model_cpu_offload()
+        pipeline.enable_model_cpu_offload(device=torch_device)
         pipeline.set_progress_bar_config(disable=None)
 
         inputs = self.get_inputs(torch_device, guidance_scale=0.0)
@@ -318,6 +319,6 @@ class StableDiffusionPAGPipelineIntegrationTests(unittest.TestCase):
         expected_slice = np.array(
             [0.3876953, 0.40356445, 0.4934082, 0.39697266, 0.41674805, 0.41015625, 0.375, 0.36914062, 0.40649414]
         )
-        assert (
-            np.abs(image_slice.flatten() - expected_slice).max() < 1e-3
-        ), f"output is different from expected, {image_slice.flatten()}"
+        assert np.abs(image_slice.flatten() - expected_slice).max() < 1e-3, (
+            f"output is different from expected, {image_slice.flatten()}"
+        )
